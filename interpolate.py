@@ -1,5 +1,6 @@
 from math import cos, asin, sin, sqrt, atan2, pi, degrees, radians
 from secrets import APIKEY
+import datetime
 import json, polyline
 import requests
 
@@ -85,11 +86,12 @@ def interpolate (latlng1, latlng2, dist):
     lat_deg = degrees(lat)
     lon = atan2(y,x)
     lon_deg = degrees(lon)
-    return [lat_deg, lon_deg]
+    return (lat_deg, lon_deg)
 
 
 def even_spacer(latlons, separation = 30):
-    even_list = [list(latlons[0])]
+    even_list = []
+    even_list.append((latlons[0]))
     current_waypoint = latlons[0]
     leg_dist = 0
     for index, waypoint in enumerate(latlons):
@@ -106,9 +108,30 @@ def even_spacer(latlons, separation = 30):
             even_list.append(mid_point)
         else:
             current_waypoint = waypoint
-    even_list.append(waypoints[-1])
+    even_list.append(latlons[-1])
     return even_list
 
+def make_route(origin, destination, separation, starttime = datetime.datetime.now()):
+    dirs = directionmatrix(origin, destination, mode="DRIVING")
+    lat_long_list = polyline.decode(dirs.get('polyline'))
+    total_dist = sum(latlongdists(lat_long_list)) # in miles
+    transit_time = dirs.get('time') # in seconds
+    avg_speed = total_dist / transit_time # miles per second
+    even_split_list = even_spacer(lat_long_list, separation)
+    out_route = []
+    current_time = starttime
+    for i, element in even_split_list:
+        current_time = current_time + datetime.timedelta(0, separation/avg_speed)
+        out_route.append({'latlon': element, 'time': current_time})
+    for element in out_route:
+        print 'latlon = ' + str(element.get('latlon')) + ' and time = ' + str(element.get('time'))
+    print str(avg_speed * 3600) + " mph" # converted to mph
+make_route('chicago, IL', 'denver, CO', 30)
+
+# example_waypoints = getoverviewpline(example_dirs)
+# make_route('denver, colorado','reno, nevada')
+# print decodepolyline(example_waypoints)
+# print decodepolyline(example_dirs.get('route').get('overview_polyline').get('points'))
 
 # dist_list = latlongdists(waypoints)
 # dist_list = [ round(elem, 2) for elem in dist_list]
