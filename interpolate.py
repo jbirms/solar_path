@@ -4,8 +4,8 @@ import datetime
 import json, polyline
 import requests
 
-# earth's radius in miles
-e_radius = 3959
+# earth's radius in meters
+e_radius = 6371000
 
 def distance(ll1, ll2):
     lat1, lon1 = ll1
@@ -25,6 +25,7 @@ def directionmatrix (origin, destination, mode):
     r = requests.get(base_url, params=geo)
     response = r.json()
     route = response['routes'][0]
+    print route
     polyline = route['overview_polyline']['points']
     legs = route['legs'][0]
     time = legs['duration']['value']
@@ -44,6 +45,16 @@ def directions (origin, destination):
     route = response['routes'][0]
     legs = route['legs'][0]
     return dict(route=route,legs=legs)
+dir1 = directions('455 broadway, new york, ny', '184 leigh st., clinton, nj')
+# print dir1
+def parse_directions(dirs):
+    legs = dirs.get('legs').get('steps')
+    out = []
+    for leg in legs:
+        out.append(dict(dist=leg.get('distance').get('value'), start_loc=leg.get('start_location'), end_loc=leg.get('end_location'), poly=leg.get('polyline').get('points'), seconds=leg.get('duration').get('value')))
+    return out
+    # return dict(location=dirs.get('route').get('legs')[0].get('steps').get('start_location'))
+print parse_directions(dir1)
 
 def getoverviewpline (dirs):
     polyline = dirs['route']['overview_polyline']['points']
@@ -86,30 +97,60 @@ def interpolate (latlng1, latlng2, dist):
     lat_deg = degrees(lat)
     lon = atan2(y,x)
     lon_deg = degrees(lon)
-    return (lat_deg, lon_deg)
+    return {'lat': lat_deg, 'lon': lon_deg}
 
 
-def even_spacer(latlons, separation = 30):
+def even_spacer(my_route, separation = 50000):
     even_list = []
-    even_list.append((latlons[0]))
-    current_waypoint = latlons[0]
+    even_list.append({'loc': my_route[0].get('start_loc'), 't': my_route[0].get('seconds')})
+    current_waypoint = my_route[0]
     leg_dist = 0
-    for index, waypoint in enumerate(latlons):
-        delta_dist = distance(current_waypoint, waypoint)
+    leg_time = 0
+    for waypoint in my_route:
+        delta_dist = float(waypoint.get('dist'))
+        leg_time += float(waypoint.get('seconds'))
         leg_dist += delta_dist
+# {'dist': 355, 'start_loc':{'lat':-41, 'lng':-75}, end_loc:{'lat':-40, 'lng':-76}, poly:'sdfaoweruv4r', 'seconds': 45}
+        # print 'leg dist = ' + str(leg_dist)
         if leg_dist>separation:
-            prev = latlons[index-1]
-            next = latlons[index]
-            rev_dist = leg_dist - separation
-            mid_point = interpolate(next,prev, rev_dist)
-            current_waypoint = mid_point
-            leg_dist = 0
-            leg_dist += rev_dist
-            even_list.append(mid_point)
+            poly = decodepolyline(waypoint.get('poly'))
+            first_length = separation - (leg_dist - delta_dist)
+            remaining = leg_dist - separation
+            meters_per_sec = delta_dist / float(waypoint.get('seconds'))
+            first_time = first_length / meters_per_sec
+            poly_dist = 0
+            cur = None
+            for i, item in enumerate(poly, start=1):
+                poly_dist += distance(poly[i-1], item)
+                if poly_dist > first_length:
+                    over_by = poly_dist - first_length
+                    mid_point = interpolate(item, poly[i-1], over_by)
+                    current_waypoint = mid_point
+                    leg_dist = remaining
+                    
+                    even_list.append({'loc': mid_point, 't': first_time})
+                    cur = item
+
+
+
+                elif remaining > separation:
+
+
+
+
+            # next = waypoint
+            # rev_dist = leg_dist - separation
+            # mid_point = interpolate(next,prev, rev_dist)
+            # current_waypoint = mid_point
+            # leg_dist = 0
+            # leg_dist += rev_dist
+            # even_list.append(mid_point)
         else:
             current_waypoint = waypoint
-    even_list.append(latlons[-1])
+    even_list.append({'loc': my_route[-1].get('end_loc'), 't': )
+    # out format = [{'loc':{'lat':-41, 'lng':-75}, 't': 367}, {etc}]
     return even_list
+
 
 def make_route(origin, destination, separation, starttime = datetime.datetime.now()):
     dirs = directionmatrix(origin, destination, mode="DRIVING")
@@ -120,13 +161,15 @@ def make_route(origin, destination, separation, starttime = datetime.datetime.no
     even_split_list = even_spacer(lat_long_list, separation)
     out_route = []
     current_time = starttime
-    for i, element in even_split_list:
+    for element in even_split_list:
         current_time = current_time + datetime.timedelta(0, separation/avg_speed)
         out_route.append({'latlon': element, 'time': current_time})
-    for element in out_route:
-        print 'latlon = ' + str(element.get('latlon')) + ' and time = ' + str(element.get('time'))
-    print str(avg_speed * 3600) + " mph" # converted to mph
-make_route('chicago, IL', 'denver, CO', 30)
+    return out_route
+    # for element in out_route:
+    #     print 'latlon = ' + str(element.get('latlon')) + ' and time = ' + str(element.get('time'))
+    # print str(avg_speed * 3600) + " mph" # converted to mph
+
+# make_route('455 broadway, new york, ny', '184 leigh st., clinton, nj', 50)
 
 # example_waypoints = getoverviewpline(example_dirs)
 # make_route('denver, colorado','reno, nevada')
