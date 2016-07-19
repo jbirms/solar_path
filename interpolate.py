@@ -10,11 +10,15 @@ import requests
 e_radius = 6371000
 
 def distance(ll1, ll2):
-    lat1, lon1 = ll1
-    lat2, lon2 = ll2
+    # lat1, lon1 = ll1
+    # lat2, lon2 = ll2
+    lat1 = ll1.get('loc').get('lat')
+    lng1 = ll1.get('loc').get('lng')
+    lat2 = ll2.get('loc').get('lat')
+    lng2 = ll2.get('loc').get('lng')
     # Using the Haversine formula
     p = 0.017453292519943295 #math.pi / 180
-    a = 0.5 - cos((lat2 - lat1) * p)/2 + cos(lat1 * p) * cos(lat2 * p) * (1 - cos((lon2 - lon1) * p)) / 2
+    a = 0.5 - cos((lat2 - lat1) * p)/2 + cos(lat1 * p) * cos(lat2 * p) * (1 - cos((lng2 - lng1) * p)) / 2
     return 2 * e_radius * asin(sqrt(a))
 
 def directionmatrix (origin, destination, mode):
@@ -45,9 +49,11 @@ def directions (origin, destination):
     r = requests.get(base_url, params=geo)
     response  = r.json()
     route = response['routes'][0]
+    # print route
     legs = route['legs'][0]
     return dict(route=route,legs=legs)
-dir1 = directions('455 broadway, new york, ny', '184 leigh st., clinton, nj')
+dir1 = directions('455 broadway, new york, ny', '7 Lower Center St, Clinton, NJ')
+print dir1
 # print dir1
 def parse_directions(dirs):
     legs = dirs.get('legs').get('steps')
@@ -56,17 +62,21 @@ def parse_directions(dirs):
         out.append(dict(dist=leg.get('distance').get('value'), start_loc=leg.get('start_location'), end_loc=leg.get('end_location'), poly=leg.get('polyline').get('points'), seconds=leg.get('duration').get('value')))
     return out
     # return dict(location=dirs.get('route').get('legs')[0].get('steps').get('start_location'))
-# print parse_directions(dir1)
+print parse_directions(dir1)
 
 def getoverviewpline (dirs):
     polyline = dirs['route']['overview_polyline']['points']
     return polyline
 
 def decodepolyline(polyline):
-    return polyline.decode(polyline)
+    line = polyline.decode(polyline)
+    out = []
+    for point in line:
+        out.append({'loc': {'lat': point[0], 'lng': point[1]}})
+    return out
 
 # example_dirs = directions('denver, colorado','reno, nevada')
-
+print decodepolyline(directions('denver, colorado','reno, nevada').get('route').get('overview_polyline').get('points'))
 # example_waypoints = getoverviewpline(example_dirs)
 
 # example for testing, this is a polyline from Denver, CO to Reno, NV
@@ -107,17 +117,18 @@ def even_spacer(my_route, separation = 50000):
     timestamp = 0
     dist_traveled = 0
     all_points.append({'loc': my_route[0].get('start_loc'), 't': timestamp, 'dist': dist_traveled})
-    for waypoint in my_route:
-        avg_speed = waypoint.get('dist') / waypoint.get('seconds')
-        # print avg_speed
-        poly_list = decodepolyline(waypoint.get('poly'))
-        for index, point in enumerate(poly_list, start=1):
-            leg_dist = distance(poly_list[index - 1], point)
-            dist_traveled += leg_dist
-            timestamp += leg_dist / avg_speed
-            
-
-# even_spacer(parse_directions(dir1))
+    # for waypoint in my_route:
+    #     avg_speed = waypoint.get('dist') / waypoint.get('seconds')
+    #     # print avg_speed
+    #     poly_list = decodepolyline(waypoint.get('poly'))
+    #     for index, point in enumerate(poly_list, start=1):
+    #         leg_dist = distance(poly_list[index - 1], point)
+    #         dist_traveled += leg_dist
+    #         timestamp += leg_dist / avg_speed
+    #         all_points.append({'loc': point.get('loc'), 't': timestamp, 'dist': dist_traveled})
+    # return all_points
+    return my_route[0]
+print even_spacer(parse_directions(dir1))
 
 # def even_spacer(my_route, separation = 50000):
 #     even_list = []
