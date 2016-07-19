@@ -2,9 +2,10 @@ from __future__ import division
 from math import cos, asin, sin, sqrt, atan2, pi, degrees, radians, ceil
 from secrets import APIKEY
 import datetime
-import json, polyline
+import json
+from polyline import decode
 import requests
-
+from bisect import bisect_left
 
 # earth's radius in meters
 e_radius = 6371000
@@ -31,13 +32,19 @@ def directionmatrix (origin, destination, mode):
     r = requests.get(base_url, params=geo)
     response = r.json()
     route = response['routes'][0]
-    print route
+    # print route
     polyline = route['overview_polyline']['points']
     legs = route['legs'][0]
     time = legs['duration']['value']
     return dict(time=time, polyline=polyline)
 
 # nine_am = int(time.mktime(time.struct_time([2016,7,14,9,00,0,0,0,0])))
+
+def quote(s1):
+    return "'{}'".format(s1)
+
+def build_dict(seq, key):
+    return dict((d[key], dict(d, index=index)) for (index, d) in enumerate(seq))
 
 def directions (origin, destination):
     base_url = 'https://maps.googleapis.com/maps/api/directions/json'
@@ -53,7 +60,6 @@ def directions (origin, destination):
     legs = route['legs'][0]
     return dict(route=route,legs=legs)
 dir1 = directions('455 broadway, new york, ny', '7 Lower Center St, Clinton, NJ')
-print dir1
 # print dir1
 def parse_directions(dirs):
     legs = dirs.get('legs').get('steps')
@@ -62,21 +68,21 @@ def parse_directions(dirs):
         out.append(dict(dist=leg.get('distance').get('value'), start_loc=leg.get('start_location'), end_loc=leg.get('end_location'), poly=leg.get('polyline').get('points'), seconds=leg.get('duration').get('value')))
     return out
     # return dict(location=dirs.get('route').get('legs')[0].get('steps').get('start_location'))
-print parse_directions(dir1)
+# print parse_directions(dir1)
 
 def getoverviewpline (dirs):
     polyline = dirs['route']['overview_polyline']['points']
     return polyline
 
 def decodepolyline(polyline):
-    line = polyline.decode(polyline)
-    out = []
+    line = decode(polyline)
+    out_list = []
     for point in line:
-        out.append({'loc': {'lat': point[0], 'lng': point[1]}})
-    return out
+        out_list.append({'loc': {'lat': point[0], 'lng': point[1]}})
+    return out_list
 
 # example_dirs = directions('denver, colorado','reno, nevada')
-print decodepolyline(directions('denver, colorado','reno, nevada').get('route').get('overview_polyline').get('points'))
+# print decodepolyline(directions('denver, colorado','reno, nevada').get('route').get('overview_polyline').get('points'))
 # example_waypoints = getoverviewpline(example_dirs)
 
 # example for testing, this is a polyline from Denver, CO to Reno, NV
@@ -111,23 +117,38 @@ def interpolate (latlng1, latlng2, dist):
     lon_deg = degrees(lon)
     return {'lat': lat_deg, 'lon': lon_deg}
 
-def even_spacer(my_route, separation = 50000):
+def even_spacer(my_route, separation = 300):
 # my_route list of dicts format: {'dist': 355, 'start_loc':{'lat':-41, 'lng':-75}, end_loc:{'lat':-40, 'lng':-76}, poly:'sdfaoweruv4r', 'seconds': 45}
     all_points = []
+    timings = [0]
     timestamp = 0
     dist_traveled = 0
     all_points.append({'loc': my_route[0].get('start_loc'), 't': timestamp, 'dist': dist_traveled})
-    # for waypoint in my_route:
-    #     avg_speed = waypoint.get('dist') / waypoint.get('seconds')
-    #     # print avg_speed
-    #     poly_list = decodepolyline(waypoint.get('poly'))
-    #     for index, point in enumerate(poly_list, start=1):
-    #         leg_dist = distance(poly_list[index - 1], point)
-    #         dist_traveled += leg_dist
-    #         timestamp += leg_dist / avg_speed
-    #         all_points.append({'loc': point.get('loc'), 't': timestamp, 'dist': dist_traveled})
-    # return all_points
-    return my_route[0]
+    for waypoint in my_route:
+        avg_speed = waypoint.get('dist') / waypoint.get('seconds')
+        # print avg_speed
+        # print waypoint.get('poly')
+        poly_list = decodepolyline(quote(waypoint.get('poly')))
+        for index, point in enumerate(poly_list):
+            if 0 < index < len(poly_list) - 1:
+                leg_dist = distance(poly_list[index], poly_list[index+1])
+                dist_traveled += leg_dist
+                timestamp += leg_dist / avg_speed
+                timings.append(round(timestamp))
+                all_points.append({'loc': point.get('loc'), 't': round(timestamp), 'dist': round(dist_traveled)})
+    out_list = []
+    num = 0
+    i = 0
+    time_dict = build_dict(all_points, key="t")
+    reduced_times = []
+    while num < timestamp:
+        num = i * separation
+        reduced_times.append(timings[bisect_left(timings, num) - 1])
+        i += 1
+    for item in reduced_times:
+        out_list.append(time_dict[item])
+    return out_list
+    # return my_route[0]
 print even_spacer(parse_directions(dir1))
 
 # def even_spacer(my_route, separation = 50000):
