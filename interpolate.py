@@ -78,7 +78,7 @@ def decodepolyline(polyline):
     line = decode(polyline)
     out_list = []
     for point in line:
-        out_list.append({'loc': {'lat': point[0], 'lng': point[1]}})
+        out_list.append({'loc': {'lat': point[1], 'lng': point[0]}})
     return out_list
 
 # example_dirs = directions('denver, colorado','reno, nevada')
@@ -137,8 +137,9 @@ def even_spacer(my_route, separation = 300):
                 timings.append(round(timestamp))
                 all_points.append({'loc': point.get('loc'), 't': round(timestamp), 'dist': round(dist_traveled)})
     out_list = []
+    out_list.append(all_points[0])
     num = 0
-    i = 0
+    i = 1
     time_dict = build_dict(all_points, key="t")
     reduced_times = []
     while num < timestamp:
@@ -146,97 +147,9 @@ def even_spacer(my_route, separation = 300):
         reduced_times.append(timings[bisect_left(timings, num) - 1])
         i += 1
     for item in reduced_times:
+        del time_dict[item]['index']
         out_list.append(time_dict[item])
+    # out_list.append(all_points[-1])
     return out_list
     # return my_route[0]
-print even_spacer(parse_directions(dir1))
-
-# def even_spacer(my_route, separation = 50000):
-#     even_list = []
-#     even_list.append({'loc': my_route[0].get('start_loc'), 't': my_route[0].get('seconds')})
-#     current_waypoint = my_route[0]
-#     leg_dist = 0
-#     total_seconds = 0
-#     for waypoint in my_route:
-#         delta_dist = float(waypoint.get('dist'))
-#         total_seconds += float(waypoint.get('seconds'))
-#         leg_dist += delta_dist
-# # {'dist': 355, 'start_loc':{'lat':-41, 'lng':-75}, end_loc:{'lat':-40, 'lng':-76}, poly:'sdfaoweruv4r', 'seconds': 45}
-#         # print 'leg dist = ' + str(leg_dist)
-#         if leg_dist>separation:
-#             poly = decodepolyline(waypoint.get('poly'))
-#             first_length = separation - (leg_dist - delta_dist)
-#             remaining = leg_dist - separation
-#             to_split = ceil(remaining / separation)
-#             meters_per_sec = delta_dist / float(waypoint.get('seconds'))
-#             first_time = first_length / meters_per_sec + total_seconds
-#             poly_dist = 0
-#             cur = None
-#             i = 1
-#             while to_split > 0 and i < len(poly):
-#                 poly_dist += distance(poly[i-1], item)
-#                 if poly_dist > first_length:
-
-#             for i, item in enumerate(poly, start=1):
-#                 poly_dist += distance(poly[i-1], item)
-#                 if poly_dist > first_length:
-#                     over_by = poly_dist - first_length
-#                     mid_point = interpolate(item, poly[i-1], over_by)
-#                     current_waypoint = mid_point
-#                     leg_dist = remaining
-
-#                     even_list.append({'loc': mid_point, 't': first_time})
-#                     cur = item
-
-#                 elif remaining > separation:
-
-#             # next = waypoint
-#             # rev_dist = leg_dist - separation
-#             # mid_point = interpolate(next,prev, rev_dist)
-#             # current_waypoint = mid_point
-#             # leg_dist = 0
-#             # leg_dist += rev_dist
-#             # even_list.append(mid_point)
-#         else:
-#             current_waypoint = waypoint
-#     even_list.append({'loc': my_route[-1].get('end_loc'), 't': )
-#     # out format = [{'loc':{'lat':-41, 'lng':-75}, 't': 367}, {etc}]
-#     return even_list
-
-
-def make_route(origin, destination, separation, starttime = datetime.datetime.now()):
-    dirs = directionmatrix(origin, destination, mode="DRIVING")
-    lat_long_list = polyline.decode(dirs.get('polyline'))
-    total_dist = sum(latlongdists(lat_long_list)) # in miles
-    transit_time = dirs.get('time') # in seconds
-    avg_speed = total_dist / transit_time # miles per second
-    even_split_list = even_spacer(lat_long_list, separation)
-    out_route = []
-    current_time = starttime
-    for element in even_split_list:
-        current_time = current_time + datetime.timedelta(0, separation/avg_speed)
-        out_route.append({'latlon': element, 'time': current_time})
-    return out_route
-    # for element in out_route:
-    #     print 'latlon = ' + str(element.get('latlon')) + ' and time = ' + str(element.get('time'))
-    # print str(avg_speed * 3600) + " mph" # converted to mph
-
-# make_route('455 broadway, new york, ny', '184 leigh st., clinton, nj', 50)
-
-# example_waypoints = getoverviewpline(example_dirs)
-# make_route('denver, colorado','reno, nevada')
-# print decodepolyline(example_waypoints)
-# print decodepolyline(example_dirs.get('route').get('overview_polyline').get('points'))
-
-# dist_list = latlongdists(waypoints)
-# dist_list = [ round(elem, 2) for elem in dist_list]
-# print(dist_list)
-# print(waypoints)
-# even_waypoints = even_spacer(waypoints)
-
-# print(latlongdists(even_waypoints))
-# print even_waypoints
-
-# print(sorted(list_distances))
-# print(sum(list_distances))
-
+# print even_spacer(parse_directions(dir1))
